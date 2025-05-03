@@ -13,6 +13,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, UUID4, Field
 from dotenv import load_dotenv
 import google.generativeai as genai
+# from opencensus.ext.azure.log_exporter import AzureLogHandler
+import logging
+# from azure.identity import DefaultAzureCredential
+# from azure.ai.openai import OpenAIClient, ChatCompletions
+
 
 # Load environment variables
 load_dotenv()
@@ -171,6 +176,7 @@ def delete_note(note_id: uuid.UUID):
 
 # AI Integration
 def get_insights(note, api_key=None):
+    # Configure API key with proper error handling
     if api_key:
         genai.configure(api_key=api_key)
     elif GEMINI_API_KEY:
@@ -179,8 +185,11 @@ def get_insights(note, api_key=None):
         raise HTTPException(status_code=400, detail="Gemini API key is required")
     
     try:
-        model = genai.GenerativeModel('gemini-flash-2.0')
+        # Use currently available Gemini model instead of "gemini-flash-2.0"
+        # The latest models are "gemini-1.5-pro" or "gemini-pro"
+        model = genai.GenerativeModel('gemini-1.5-pro')
         
+        # Structured prompt for better results
         prompt = f"""
         Analyze this freelancer's information and provide insights:
         
@@ -190,19 +199,63 @@ def get_insights(note, api_key=None):
         Clients: {note["clients"] or "Not specified"}
         Work Summary: {note["work_summary"] or "Not specified"}
         
-        Please provide:
+        Please provide following in neat and clean and point format with colorful format line by line not in paragraph:
         1. Suggestions for improving their profile or skills
         2. Patterns or trends you notice in their work history
         3. Recommended client types or platforms based on their skills
         4. Other insights or opportunities they might explore
         """
         
-        response = model.generate_content(prompt)
+        # Set safety settings and generation config for better control
+        safety_settings = [
+            {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+                "category": "HARM_CATEGORY_HATE_SPEECH",
+                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+            }
+        ]
+        
+        generation_config = {
+            "temperature": 0.7,
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 1024,
+        }
+        
+        response = model.generate_content(
+            prompt,
+            generation_config=generation_config,
+            safety_settings=safety_settings
+        )
+        
         return {
-            "suggestions": response.text
+            "suggestions": response.text,
+            "model_used": "gemini-1.5-pro"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating insights: {str(e)}")
+        # Enhanced error handling with specific error types
+        error_message = str(e)
+        print(f"AI integration error: {error_message}")
+        
+        if "not found" in error_message.lower():
+            # Try fallback model if primary model not found
+            try:
+                model = genai.GenerativeModel('gemini-pro')
+                response = model.generate_content(prompt)
+                return {
+                    "suggestions": response.text,
+                    "model_used": "gemini-pro (fallback)"
+                }
+            except Exception as fallback_error:
+                raise HTTPException(
+                    status_code=500, 
+                    detail=f"Error with primary and fallback models: {str(fallback_error)}"
+                )
+        
+        raise HTTPException(status_code=500, detail=f"Error generating insights: {error_message}")
 
 # FastAPI Application
 app = FastAPI(title="Freelancer Research Notebook")
