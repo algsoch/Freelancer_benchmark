@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white p-6 rounded-lg shadow mb-6">
+        <h2 class="text-2xl font-bold mb-4">Freelancer: {{ note.name }}</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div>
+                <h3 class="font-bold text-lg">Skills</h3>
+                <p class="text-gray-700">{{ note.skills or "Not specified" }}</p>
+            </div>
+            
+            <div>
+                <h3 class="font-bold text-lg">Projects</h3>
+                <p class="text-gray-700">{{ note.projects or "Not specified" }}</p>
+            </div>
+            
+            <div>
+                <h3 class="font-bold text-lg">Clients</h3>
+                <p class="text-gray-700">{{ note.clients or "Not specified" }}</p>
+            </div>
+            
+            <div>
+                <h3 class="font-bold text-lg">Work Summary</h3>
+                <p class="text-gray-700">{{ note.work_summary or "Not specified" }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-2xl font-bold mb-4">AI Insights</h2>
+        
+        {% if error %}
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                <p>{{ error }}</p>
+                
+                <div class="mt-4">
+                    <form action="/ai/insights/{{ note.id }}" method="post" class="flex flex-col space-y-2">
+                        <label for="api_key" class="font-bold">Enter your Gemini API Key:</label>
+                        <input type="text" id="api_key" name="api_key" 
+                               class="px-3 py-2 border rounded focus:outline-none focus:ring focus:border-blue-300"
+                               placeholder="Your Gemini API Key">
+                        <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                            Get Insights
+                        </button>
+                    </form>
+                </div>
+            </div>
+        {% elif insights %}
+            <div class="prose max-w-none">
+                {{ insights.suggestions | safe }}
+            </div>
+        {% else %}
+            <div class="text-center py-8">
+                <p class="text-lg mb-4">Loading insights...</p>
+                <div class="loader mx-auto"></div>
+            </div>
+            
+            <script>
+                // Auto-fetch insights when page loads
+                document.addEventListener('DOMContentLoaded', function() {
+                    fetch('/ai/insights/{{ note.id }}')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.suggestions) {
+                                const insightsDiv = document.querySelector('.prose');
+                                insightsDiv.innerHTML = data.suggestions;
+                                document.querySelector('.text-center').style.display = 'none';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error fetching insights:', error);
+                            const insightsDiv = document.querySelector('.prose');
+                            insightsDiv.innerHTML = '<div class="text-red-500">Error loading insights. Please try again.</div>';
+                            document.querySelector('.text-center').style.display = 'none';
+                        });
+                });
+            </script>
+            
+            <style>
+                .loader {
+                    border: 5px solid #f3f3f3;
+                    border-top: 5px solid #3498db;
+                    border-radius: 50%;
+                    width: 50px;
+                    height: 50px;
+                    animation: spin 2s linear infinite;
+                }
+                
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            </style>
+        {% endif %}
+    </div>
+    
+    <div class="mt-6">
+        <a href="/" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">
+            Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}
